@@ -13,6 +13,7 @@
 - Godot version: 4.7 (`config/features=PackedStringArray("4.7", "Forward Plus")` in `project.godot`) — do not use APIs newer than 4.7.
 - No jump in this pass. Player state machine must stay clean enough to add an `Airborne` state later without a rewrite (per spec §1).
 - Both keyboard and controller must work for both players (per spec §2) — do not build controller-only.
+- Every `Input.get_action_strength()` / `Input.is_action_just_pressed()` call reading a `p1_*`/`p2_*` action must pass `exact_match: true`. Godot's default `exact_match=false` ignores the input event's `device` field when matching, so without this a button press on P2's controller (device 1) also satisfies `p1_*` actions (bound to device 0) — silently breaking P1/P2 controller isolation. Discovered during Task 1 review; fixed at every call site in this plan's Task 5-9 code.
 - Basic Attack and Special are separate input actions (per spec §3) — never combine them.
 - Special is cooldown-gated, never ammo/item-gated (per spec §3) — the Sniper's special must work with no puck present.
 - Puck throwing is a separate system from Special (per spec §3) — do not let one implementation serve both.
@@ -550,8 +551,8 @@ func _physics_process(delta: float) -> void:
 
 func _process_movement(delta: float) -> void:
 	var input_dir := Vector2(
-		Input.get_action_strength(input_prefix + "_move_right") - Input.get_action_strength(input_prefix + "_move_left"),
-		Input.get_action_strength(input_prefix + "_move_down") - Input.get_action_strength(input_prefix + "_move_up")
+		Input.get_action_strength(input_prefix + "_move_right", true) - Input.get_action_strength(input_prefix + "_move_left", true),
+		Input.get_action_strength(input_prefix + "_move_down", true) - Input.get_action_strength(input_prefix + "_move_up", true)
 	)
 	if input_dir.length() > 1.0:
 		input_dir = input_dir.normalized()
@@ -727,8 +728,8 @@ func _physics_process(delta: float) -> void:
 
 func _process_movement(delta: float) -> void:
 	var input_dir := Vector2(
-		Input.get_action_strength(input_prefix + "_move_right") - Input.get_action_strength(input_prefix + "_move_left"),
-		Input.get_action_strength(input_prefix + "_move_down") - Input.get_action_strength(input_prefix + "_move_up")
+		Input.get_action_strength(input_prefix + "_move_right", true) - Input.get_action_strength(input_prefix + "_move_left", true),
+		Input.get_action_strength(input_prefix + "_move_down", true) - Input.get_action_strength(input_prefix + "_move_up", true)
 	)
 	if input_dir.length() > 1.0:
 		input_dir = input_dir.normalized()
@@ -742,7 +743,7 @@ func _process_movement(delta: float) -> void:
 	state = State.WALK if input_dir.length() > 0.01 else State.IDLE
 
 func _process_attack_input() -> void:
-	if not Input.is_action_just_pressed(input_prefix + "_attack"):
+	if not Input.is_action_just_pressed(input_prefix + "_attack", true):
 		return
 	current_attack_hit = combo_state.register_attack_press(character_stats.combo_window_sec)
 	attack_timer = ATTACK_ACTIVE_DURATION
@@ -975,8 +976,8 @@ func _physics_process(delta: float) -> void:
 
 func _process_movement(delta: float) -> void:
 	var input_dir := Vector2(
-		Input.get_action_strength(input_prefix + "_move_right") - Input.get_action_strength(input_prefix + "_move_left"),
-		Input.get_action_strength(input_prefix + "_move_down") - Input.get_action_strength(input_prefix + "_move_up")
+		Input.get_action_strength(input_prefix + "_move_right", true) - Input.get_action_strength(input_prefix + "_move_left", true),
+		Input.get_action_strength(input_prefix + "_move_down", true) - Input.get_action_strength(input_prefix + "_move_up", true)
 	)
 	if input_dir.length() > 1.0:
 		input_dir = input_dir.normalized()
@@ -990,7 +991,7 @@ func _process_movement(delta: float) -> void:
 	state = State.WALK if input_dir.length() > 0.01 else State.IDLE
 
 func _process_attack_input() -> void:
-	if not Input.is_action_just_pressed(input_prefix + "_attack"):
+	if not Input.is_action_just_pressed(input_prefix + "_attack", true):
 		return
 	current_attack_hit = combo_state.register_attack_press(character_stats.combo_window_sec)
 	attack_timer = ATTACK_ACTIVE_DURATION
@@ -1009,7 +1010,7 @@ func _process_attack_timer(delta: float) -> void:
 func _process_special_input() -> void:
 	if special_cooldown_remaining > 0.0:
 		return
-	if not Input.is_action_just_pressed(input_prefix + "_special"):
+	if not Input.is_action_just_pressed(input_prefix + "_special", true):
 		return
 	special_cooldown_remaining = character_stats.special_cooldown_sec
 	if character_stats.special_behavior:
@@ -1170,8 +1171,8 @@ func _physics_process(delta: float) -> void:
 
 func _process_movement(delta: float) -> void:
 	var input_dir := Vector2(
-		Input.get_action_strength(input_prefix + "_move_right") - Input.get_action_strength(input_prefix + "_move_left"),
-		Input.get_action_strength(input_prefix + "_move_down") - Input.get_action_strength(input_prefix + "_move_up")
+		Input.get_action_strength(input_prefix + "_move_right", true) - Input.get_action_strength(input_prefix + "_move_left", true),
+		Input.get_action_strength(input_prefix + "_move_down", true) - Input.get_action_strength(input_prefix + "_move_up", true)
 	)
 	if input_dir.length() > 1.0:
 		input_dir = input_dir.normalized()
@@ -1185,7 +1186,7 @@ func _process_movement(delta: float) -> void:
 	state = State.WALK if input_dir.length() > 0.01 else State.IDLE
 
 func _process_attack_input() -> void:
-	if not Input.is_action_just_pressed(input_prefix + "_attack"):
+	if not Input.is_action_just_pressed(input_prefix + "_attack", true):
 		return
 	current_attack_hit = combo_state.register_attack_press(character_stats.combo_window_sec)
 	attack_timer = ATTACK_ACTIVE_DURATION
@@ -1204,7 +1205,7 @@ func _process_attack_timer(delta: float) -> void:
 func _process_special_input() -> void:
 	if special_cooldown_remaining > 0.0:
 		return
-	if not Input.is_action_just_pressed(input_prefix + "_special"):
+	if not Input.is_action_just_pressed(input_prefix + "_special", true):
 		return
 	special_cooldown_remaining = character_stats.special_cooldown_sec
 	if character_stats.special_behavior:
@@ -1385,8 +1386,8 @@ func _physics_process(delta: float) -> void:
 
 func _process_movement(delta: float) -> void:
 	var input_dir := Vector2(
-		Input.get_action_strength(input_prefix + "_move_right") - Input.get_action_strength(input_prefix + "_move_left"),
-		Input.get_action_strength(input_prefix + "_move_down") - Input.get_action_strength(input_prefix + "_move_up")
+		Input.get_action_strength(input_prefix + "_move_right", true) - Input.get_action_strength(input_prefix + "_move_left", true),
+		Input.get_action_strength(input_prefix + "_move_down", true) - Input.get_action_strength(input_prefix + "_move_up", true)
 	)
 	if input_dir.length() > 1.0:
 		input_dir = input_dir.normalized()
@@ -1400,7 +1401,7 @@ func _process_movement(delta: float) -> void:
 	state = State.WALK if input_dir.length() > 0.01 else State.IDLE
 
 func _process_attack_input() -> void:
-	if not Input.is_action_just_pressed(input_prefix + "_attack"):
+	if not Input.is_action_just_pressed(input_prefix + "_attack", true):
 		return
 
 	if carried_puck:
@@ -1427,7 +1428,7 @@ func _process_attack_timer(delta: float) -> void:
 func _process_special_input() -> void:
 	if special_cooldown_remaining > 0.0:
 		return
-	if not Input.is_action_just_pressed(input_prefix + "_special"):
+	if not Input.is_action_just_pressed(input_prefix + "_special", true):
 		return
 	special_cooldown_remaining = character_stats.special_cooldown_sec
 	if character_stats.special_behavior:
