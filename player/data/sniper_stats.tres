@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="CharacterStats" format=3 uid="uid://bf6tlw3hyxroq"]
+
+[ext_resource type="Script" uid="uid://dslu4djhka35c" path="res://player/character_stats.gd" id="1_i4x8u"]
+
+[resource]
+script = ExtResource("1_i4x8u")
+character_name = "The Sniper"
+move_speed = 260.0
+depth_speed = 190.0
+max_hp = 80
+combo_damage = Array[int]([8, 8, 12])
+combo_window_sec = 0.5
+knockback_force = 160.0
+finisher_knockback_force = 320.0
+iframe_duration_sec = 0.5
+display_color = Color(0.2, 0.5, 0.9, 1)
