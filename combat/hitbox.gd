@@ -3,13 +3,13 @@ class_name Hitbox
 
 var damage: int = 0
 var knockback_force: float = 0.0
-var source = null
+var source: Node = null
 
 func _ready() -> void:
 	monitoring = false
 	area_entered.connect(_on_area_entered)
 
-func activate(p_damage: int, p_knockback_force: float, p_source) -> void:
+func activate(p_damage: int, p_knockback_force: float, p_source: Node) -> void:
 	damage = p_damage
 	knockback_force = p_knockback_force
 	source = p_source

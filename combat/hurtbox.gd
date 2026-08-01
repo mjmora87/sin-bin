@@ -1,7 +1,7 @@
 extends Area2D
 class_name Hurtbox
 
-@export var owner_body = null
+@export var owner_body: Node = null
 
 func _ready() -> void:
 	add_to_group("hurtbox")
