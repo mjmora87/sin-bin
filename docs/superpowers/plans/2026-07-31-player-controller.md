@@ -456,20 +456,25 @@ func run():
 	hitbox._ready()
 	results.append(["hitbox_starts_inactive", hitbox.monitoring == false])
 
+	# Node2D (not RefCounted) so it satisfies Hitbox.activate()'s `p_source: Node`
+	# parameter under GDScript's static typing, and gets global_position for free.
 	var source_script := GDScript.new()
-	source_script.source_code = "extends RefCounted\nvar global_position = Vector2(5, 5)\n"
+	source_script.source_code = "extends Node2D\n"
 	source_script.reload()
 	var source = source_script.new()
+	source.global_position = Vector2(5, 5)
 
 	hitbox.activate(12, 150.0, source)
 	results.append(["hitbox_activate_sets_state", hitbox.monitoring == true and hitbox.damage == 12 and hitbox.knockback_force == 150.0])
 
 	hitbox.deactivate()
 	results.append(["hitbox_deactivate_clears_monitoring", hitbox.monitoring == false])
+	source.free()
 
 	# Hurtbox: take_damage() forwards to owner_body.take_damage() with the same args.
+	# Node (not RefCounted) so it satisfies Hurtbox.owner_body's `: Node` type.
 	var mock_script := GDScript.new()
-	mock_script.source_code = "extends RefCounted\nvar received = []\nfunc take_damage(amount, kb, pos):\n\treceived.append([amount, kb, pos])\n"
+	mock_script.source_code = "extends Node\nvar received = []\nfunc take_damage(amount, kb, pos):\n\treceived.append([amount, kb, pos])\n"
 	mock_script.reload()
 	var mock = mock_script.new()
 
@@ -478,6 +483,7 @@ func run():
 	hurtbox.owner_body = mock
 	hurtbox.take_damage(15, 200.0, Vector2(1, 2))
 	results.append(["hurtbox_forwards_to_owner", mock.received.size() == 1 and mock.received[0][0] == 15 and mock.received[0][1] == 200.0])
+	mock.free()
 
 	var failures := []
 	for r in results:
@@ -486,7 +492,7 @@ func run():
 	return "PASS" if failures.is_empty() else "FAIL: %s" % [failures]
 ```
 
-Expected: `PASS`.
+Expected: `PASS`. (This test's Step 3 code deliberately keeps `p_source: Node` and `owner_body: Node` typed exactly as specified — do not loosen them to untyped/Variant to make a differently-typed mock fit. If an implementation attempt already loosened these types, restore the typed signatures shown in Step 3/4 above.)
 
 - [ ] **Step 6: Commit**
 
