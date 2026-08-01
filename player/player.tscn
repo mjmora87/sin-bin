@@ -1,0 +1,42 @@
+[gd_scene format=3 uid="uid://dgk0eath4fyva"]
+
+[ext_resource type="Script" uid="uid://bodtc2qgbn1ec" path="res://player/player_controller.gd" id="1_oul6g"]
+[ext_resource type="Script" uid="uid://c038revw5lwo3" path="res://combat/hitbox.gd" id="2_rkbax"]
+[ext_resource type="Resource" uid="uid://ddg5tyy03bf4j" path="res://player/data/enforcer_stats.tres" id="2_yw30f"]
+[ext_resource type="Script" uid="uid://13llpe8ul221" path="res://combat/hurtbox.gd" id="3_g1dw6"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_oul6g"]
+size = Vector2(20, 32)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_rkbax"]
+size = Vector2(24, 20)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_g1dw6"]
+size = Vector2(20, 32)
+
+[node name="PlayerController" type="CharacterBody2D" unique_id=44770548]
+collision_layer = 2
+script = ExtResource("1_oul6g")
+character_stats = ExtResource("2_yw30f")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1543615983]
+shape = SubResource("RectangleShape2D_oul6g")
+
+[node name="Visual" type="Polygon2D" parent="." unique_id=1977221660]
+polygon = PackedVector2Array(-10, -16, 10, -16, 10, 16, -10, 16)
+
+[node name="FacingIndicator" type="Polygon2D" parent="." unique_id=1968183842]
+color = Color(0.05, 0.05, 0.05, 1)
+polygon = PackedVector2Array(0, -4, 8, 0, 0, 4)
+
+[node name="Hitbox" type="Area2D" parent="." unique_id=1885529716]
+script = ExtResource("2_rkbax")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitbox" unique_id=999413443]
+shape = SubResource("RectangleShape2D_rkbax")
+
+[node name="Hurtbox" type="Area2D" parent="." unique_id=558512405]
+script = ExtResource("3_g1dw6")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox" unique_id=1232797533]
+shape = SubResource("RectangleShape2D_g1dw6")

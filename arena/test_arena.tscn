@@ -1,0 +1,13 @@
+[gd_scene format=3 uid="uid://bpsjxnbk6yapk"]
+
+[ext_resource type="PackedScene" uid="uid://dgk0eath4fyva" path="res://player/player.tscn" id="1_555b8"]
+[ext_resource type="Script" uid="uid://bodtc2qgbn1ec" path="res://player/player_controller.gd" id="2_6pj3w"]
+[ext_resource type="Resource" uid="uid://ddg5tyy03bf4j" path="res://player/data/enforcer_stats.tres" id="3_5fshk"]
+
+[node name="TestArena" type="Node2D" unique_id=781686505]
+y_sort_enabled = true
+
+[node name="Player1" type="CharacterBody2D" parent="." unique_id=44770548 instance=ExtResource("1_555b8")]
+collision_layer = 2
+script = ExtResource("2_6pj3w")
+character_stats = ExtResource("3_5fshk")
