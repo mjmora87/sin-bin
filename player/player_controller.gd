@@ -12,6 +12,7 @@ var facing_dir: float = 1.0
 var combo_state: ComboState
 var current_attack_hit: int = 0
 var attack_timer: float = 0.0
+var special_cooldown_remaining: float = 0.0
 
 const ATTACK_ACTIVE_DURATION := 0.18
 
@@ -28,12 +29,14 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	combo_state.tick(delta)
+	special_cooldown_remaining = max(0.0, special_cooldown_remaining - delta)
 	velocity = Vector2.ZERO
 
 	match state:
 		State.IDLE, State.WALK:
 			_process_movement(delta)
 			_process_attack_input()
+			_process_special_input()
 		State.ATTACK:
 			_process_attack_timer(delta)
 
@@ -73,6 +76,15 @@ func _process_attack_timer(delta: float) -> void:
 	if attack_timer <= 0.0:
 		hitbox.deactivate()
 		state = State.IDLE
+
+func _process_special_input() -> void:
+	if special_cooldown_remaining > 0.0:
+		return
+	if not Input.is_action_just_pressed(input_prefix + "_special", true):
+		return
+	special_cooldown_remaining = character_stats.special_cooldown_sec
+	if character_stats.special_behavior:
+		character_stats.special_behavior.execute(self)
 
 func _update_visual() -> void:
 	facing_indicator.position.x = 14.0 * facing_dir

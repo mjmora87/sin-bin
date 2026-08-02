@@ -1,6 +1,10 @@
 [gd_resource type="Resource" script_class="CharacterStats" format=3 uid="uid://bf6tlw3hyxroq"]
 
 [ext_resource type="Script" uid="uid://dslu4djhka35c" path="res://player/character_stats.gd" id="1_i4x8u"]
+[ext_resource type="Script" uid="uid://cen81djd8mvow" path="res://player/specials/slapshot_special.gd" id="2_jhbeu"]
+
+[sub_resource type="Resource" id="Resource_7g5ju"]
+script = ExtResource("2_jhbeu")
 
 [resource]
 script = ExtResource("1_i4x8u")
@@ -12,5 +16,6 @@ combo_damage = Array[int]([8, 8, 12])
 combo_window_sec = 0.5
 knockback_force = 160.0
 finisher_knockback_force = 320.0
+special_behavior = SubResource("Resource_7g5ju")
 iframe_duration_sec = 0.5
 display_color = Color(0.2, 0.5, 0.9, 1)
