@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__gdai-mcp__get_godot_errors",
+      "mcp__gdai-mcp__get_node_properties",
+      "mcp__gdai-mcp__get_scene_tree",
+      "mcp__gdai-mcp__view_script"
+    ]
+  }
+}
