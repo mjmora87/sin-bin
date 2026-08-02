@@ -829,7 +829,7 @@ const RANGE := 70.0
 const DAMAGE := 24
 
 func execute(controller) -> void:
-	var space_state := controller.get_world_2d().direct_space_state
+	var space_state: PhysicsDirectSpaceState2D = controller.get_world_2d().direct_space_state
 	var shape := CircleShape2D.new()
 	shape.radius = RANGE
 
@@ -839,12 +839,16 @@ func execute(controller) -> void:
 	params.collide_with_areas = true
 	params.collide_with_bodies = false
 
-	var hits := space_state.intersect_shape(params)
+	var hits: Array = space_state.intersect_shape(params)
 	for hit in hits:
 		var area: Area2D = hit["collider"]
+		if area == controller.hurtbox:
+			continue
 		if area.is_in_group("hurtbox") and area.has_method("take_damage"):
 			area.take_damage(DAMAGE, controller.character_stats.finisher_knockback_force, controller.global_position)
 ```
+
+The query circle is tangent at the caster's own origin (radius `RANGE`, center offset `RANGE` ahead) by design — it's a melee AoE that starts at the player's feet, not a projectile — so it geometrically overlaps the caster's own `Hurtbox` too. The `area == controller.hurtbox` guard excludes the caster explicitly rather than shrinking the range. This is currently inert (nothing implements `take_damage` yet) but becomes a real self-damage bug the moment Task 8 adds `PlayerController.take_damage` — fix it here, not there. `PhysicsDirectSpaceState2D`/`Array` are explicitly typed because Godot 4.7's static analyzer cannot infer a type from a method call chain on an untyped `controller` parameter.
 
 - [ ] **Step 3: Implement — Slapshot + projectile**
 
@@ -857,6 +861,7 @@ class_name SlapshotProjectile
 var velocity: Vector2 = Vector2.ZERO
 var damage: int = 0
 var knockback_force: float = 0.0
+var caster_hurtbox: Node = null
 
 func setup(p_velocity: Vector2, p_damage: int, p_knockback_force: float) -> void:
 	velocity = p_velocity
@@ -867,6 +872,8 @@ func _physics_process(delta: float) -> void:
 	global_position += velocity * delta
 
 func _on_area_entered(area: Area2D) -> void:
+	if area == caster_hurtbox:
+		return
 	if area.is_in_group("hurtbox") and area.has_method("take_damage"):
 		area.take_damage(damage, knockback_force, global_position)
 		queue_free()
@@ -874,6 +881,8 @@ func _on_area_entered(area: Area2D) -> void:
 func _on_screen_exited() -> void:
 	queue_free()
 ```
+
+`caster_hurtbox` is set by `SlapshotSpecial.execute()` below, before the projectile can process a physics frame. Without it, the projectile — which the original version of this plan spawned exactly on top of the caster (`global_position = controller.global_position`, no forward offset) — would self-collide with the caster's own `Hurtbox` on its very first physics tick and `queue_free()` itself before ever reaching a target. The spawn position below is now also offset 20px ahead of the caster (matching the melee hitbox's own forward-offset convention) so the projectile doesn't visually spawn inside the caster's sprite; `caster_hurtbox` is kept as the authoritative guard rather than relying on the offset alone, so this stays correct even if the offset or Hurtbox size are retuned later.
 
 Build `res://player/slapshot_projectile.tscn`:
 1. `mcp__gdai-mcp__create_scene`, `file_path: "res://player/slapshot_projectile.tscn"`, `node_type: "Area2D"`, `node_name: "SlapshotProjectile"`.
@@ -910,7 +919,8 @@ const SPEED := 520.0
 func execute(controller) -> void:
 	var projectile := PROJECTILE_SCENE.instantiate()
 	controller.get_tree().current_scene.add_child(projectile)
-	projectile.global_position = controller.global_position
+	projectile.global_position = controller.global_position + Vector2(20.0 * controller.facing_dir, 0.0)
+	projectile.caster_hurtbox = controller.hurtbox
 	projectile.setup(Vector2(controller.facing_dir, 0) * SPEED, DAMAGE, controller.character_stats.knockback_force)
 ```
 
