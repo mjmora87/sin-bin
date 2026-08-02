@@ -3,6 +3,8 @@
 [ext_resource type="PackedScene" uid="uid://dgk0eath4fyva" path="res://player/player.tscn" id="1_555b8"]
 [ext_resource type="Script" uid="uid://bodtc2qgbn1ec" path="res://player/player_controller.gd" id="2_6pj3w"]
 [ext_resource type="Resource" uid="uid://ddg5tyy03bf4j" path="res://player/data/enforcer_stats.tres" id="3_5fshk"]
+[ext_resource type="PackedScene" uid="uid://ds0dn7drdn0b3" path="res://arena/test_dummy.tscn" id="4_5fshk"]
+[ext_resource type="Script" uid="uid://bilqligcr3wsb" path="res://arena/test_dummy.gd" id="5_w7fvv"]
 
 [node name="TestArena" type="Node2D" unique_id=781686505]
 y_sort_enabled = true
@@ -11,3 +13,7 @@ y_sort_enabled = true
 collision_layer = 2
 script = ExtResource("2_6pj3w")
 character_stats = ExtResource("3_5fshk")
+
+[node name="Dummy1" type="Node2D" parent="." unique_id=1206850869 instance=ExtResource("4_5fshk")]
+position = Vector2(30, 0)
+script = ExtResource("5_w7fvv")

@@ -1,0 +1,16 @@
+[gd_scene format=3 uid="uid://ds0dn7drdn0b3"]
+
+[ext_resource type="Script" uid="uid://bilqligcr3wsb" path="res://arena/test_dummy.gd" id="1_mhp8s"]
+[ext_resource type="Script" uid="uid://13llpe8ul221" path="res://combat/hurtbox.gd" id="2_ay72g"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_ay72g"]
+size = Vector2(24, 32)
+
+[node name="TestDummy" type="Node2D" unique_id=1206850869]
+script = ExtResource("1_mhp8s")
+
+[node name="Hurtbox" type="Area2D" parent="." unique_id=82945200]
+script = ExtResource("2_ay72g")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox" unique_id=1390706903]
+shape = SubResource("RectangleShape2D_ay72g")

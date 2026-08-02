@@ -9,6 +9,11 @@ enum State { IDLE, WALK, ATTACK, HURT }
 
 var state: State = State.IDLE
 var facing_dir: float = 1.0
+var combo_state: ComboState
+var current_attack_hit: int = 0
+var attack_timer: float = 0.0
+
+const ATTACK_ACTIVE_DURATION := 0.18
 
 @onready var visual: Polygon2D = $Visual
 @onready var facing_indicator: Polygon2D = $FacingIndicator
@@ -16,13 +21,22 @@ var facing_dir: float = 1.0
 @onready var hurtbox: Hurtbox = $Hurtbox
 
 func _ready() -> void:
+	combo_state = ComboState.new()
 	if character_stats:
 		visual.color = character_stats.display_color
 	hurtbox.owner_body = self
 
 func _physics_process(delta: float) -> void:
+	combo_state.tick(delta)
 	velocity = Vector2.ZERO
-	_process_movement(delta)
+
+	match state:
+		State.IDLE, State.WALK:
+			_process_movement(delta)
+			_process_attack_input()
+		State.ATTACK:
+			_process_attack_timer(delta)
+
 	move_and_slide()
 	position.y = clamp(position.y, depth_bounds.x, depth_bounds.y)
 	_update_visual()
@@ -42,6 +56,23 @@ func _process_movement(delta: float) -> void:
 		facing_dir = sign(input_dir.x)
 
 	state = State.WALK if input_dir.length() > 0.01 else State.IDLE
+
+func _process_attack_input() -> void:
+	if not Input.is_action_just_pressed(input_prefix + "_attack", true):
+		return
+	current_attack_hit = combo_state.register_attack_press(character_stats.combo_window_sec)
+	attack_timer = ATTACK_ACTIVE_DURATION
+	state = State.ATTACK
+	var damage: int = character_stats.combo_damage[current_attack_hit - 1]
+	var knockback: float = character_stats.finisher_knockback_force if combo_state.is_finisher() else character_stats.knockback_force
+	hitbox.position.x = 20.0 * facing_dir
+	hitbox.activate(damage, knockback, self)
+
+func _process_attack_timer(delta: float) -> void:
+	attack_timer -= delta
+	if attack_timer <= 0.0:
+		hitbox.deactivate()
+		state = State.IDLE
 
 func _update_visual() -> void:
 	facing_indicator.position.x = 14.0 * facing_dir
