@@ -5,6 +5,8 @@
 [ext_resource type="Resource" uid="uid://ddg5tyy03bf4j" path="res://player/data/enforcer_stats.tres" id="3_5fshk"]
 [ext_resource type="PackedScene" uid="uid://ds0dn7drdn0b3" path="res://arena/test_dummy.tscn" id="4_5fshk"]
 [ext_resource type="Script" uid="uid://bilqligcr3wsb" path="res://arena/test_dummy.gd" id="5_w7fvv"]
+[ext_resource type="PackedScene" uid="uid://c0vm37qi36uog" path="res://items/puck.tscn" id="6_a670p"]
+[ext_resource type="Script" uid="uid://dulucw8lqks8q" path="res://items/puck.gd" id="7_imect"]
 
 [node name="TestArena" type="Node2D" unique_id=781686505]
 y_sort_enabled = true
@@ -17,3 +19,7 @@ character_stats = ExtResource("3_5fshk")
 [node name="Dummy1" type="Node2D" parent="." unique_id=1206850869 instance=ExtResource("4_5fshk")]
 position = Vector2(30, 0)
 script = ExtResource("5_w7fvv")
+
+[node name="Puck1" type="Area2D" parent="." unique_id=1524792601 instance=ExtResource("6_a670p")]
+position = Vector2(60, 0)
+script = ExtResource("7_imect")

@@ -15,6 +15,7 @@ var attack_timer: float = 0.0
 var special_cooldown_remaining: float = 0.0
 var iframe_remaining: float = 0.0
 var knockback_velocity: Vector2 = Vector2.ZERO
+var carried_puck: Puck = null
 
 const ATTACK_ACTIVE_DURATION := 0.18
 const KNOCKBACK_DECAY := 800.0
@@ -70,6 +71,14 @@ func _process_movement(delta: float) -> void:
 func _process_attack_input() -> void:
 	if not Input.is_action_just_pressed(input_prefix + "_attack", true):
 		return
+
+	if carried_puck:
+		var puck := carried_puck
+		carried_puck = null
+		var throw_pos := global_position + Vector2(20.0 * facing_dir, 0.0)
+		puck.throw(Vector2(facing_dir, 0.0), get_tree().current_scene, throw_pos)
+		return
+
 	current_attack_hit = combo_state.register_attack_press(character_stats.combo_window_sec)
 	attack_timer = ATTACK_ACTIVE_DURATION
 	state = State.ATTACK
@@ -101,6 +110,18 @@ func take_damage(amount: int, knockback_force: float, source_position: Vector2) 
 	if away.length() < 0.01:
 		away = Vector2(-facing_dir, 0.0)
 	knockback_velocity = away.normalized() * knockback_force
+
+func pick_up_puck(puck: Puck) -> void:
+	if carried_puck:
+		return
+	carried_puck = puck
+	_attach_carried_puck.call_deferred(puck)
+
+func _attach_carried_puck(puck: Puck) -> void:
+	puck.get_parent().remove_child(puck)
+	add_child(puck)
+	puck.position = Vector2(10.0, -6.0)
+	puck.attach_to_carrier(self)
 
 func _update_visual() -> void:
 	facing_indicator.position.x = 14.0 * facing_dir
