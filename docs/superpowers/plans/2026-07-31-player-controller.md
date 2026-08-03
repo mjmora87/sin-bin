@@ -13,7 +13,7 @@
 - Godot version: 4.7 (`config/features=PackedStringArray("4.7", "Forward Plus")` in `project.godot`) — do not use APIs newer than 4.7.
 - No jump in this pass. Player state machine must stay clean enough to add an `Airborne` state later without a rewrite (per spec §1).
 - Both keyboard and controller must work for both players (per spec §2) — do not build controller-only.
-- Every `Input.get_action_strength()` / `Input.is_action_just_pressed()` call reading a `p1_*`/`p2_*` action must pass `exact_match: true`. Godot's default `exact_match=false` ignores the input event's `device` field when matching, so without this a button press on P2's controller (device 1) also satisfies `p1_*` actions (bound to device 0) — silently breaking P1/P2 controller isolation. Discovered during Task 1 review; fixed at every call site in this plan's Task 5-9 code.
+- Every `Input.get_action_strength()` / `Input.is_action_just_pressed()` call reading a `p1_*`/`p2_*` action must pass `exact_match: true`. Discovered during Task 1 review; fixed at every call site in this plan's Task 5-9 code. **Correction (found during the final whole-branch review):** the original rationale recorded here was wrong — device matching in Godot's `InputMap` is strict regardless of `exact_match` (a device-1 joypad press does *not* satisfy a device-0-bound action either way; P1/P2 controller isolation comes from the `device` field already baked into the Task 1 bindings). The requirement itself is still correct, for a different reason: without `exact_match=true`, `get_action_strength`'s loose matching means pushing an analog stick in one direction also registers as nonzero strength for the *opposite* action bound to the same axis (e.g. pushing left partially satisfies both `move_left` and `move_right`), which would break analog movement. Keep `exact_match: true` everywhere; don't "simplify" it away because device isolation looks fine without it in casual testing.
 - Basic Attack and Special are separate input actions (per spec §3) — never combine them.
 - Special is cooldown-gated, never ammo/item-gated (per spec §3) — the Sniper's special must work with no puck present.
 - Puck throwing is a separate system from Special (per spec §3) — do not let one implementation serve both.
@@ -1596,3 +1596,60 @@ git commit -m "Add Player2 to test arena, confirm independent input and pass-thr
 ## Post-plan note
 
 `res://arena/test_arena.tscn` and `res://arena/test_dummy.tscn` are QA scaffolding standing in for Build Order step 5 ("Level + spawner"). They're intentionally kept (not deleted) since target-dummy scenes are a normal part of combat tuning — but they are not Level 1 (Locker Room) itself, which is separate future work.
+
+---
+
+## Final-Review Fix Wave
+
+The whole-branch review after all 10 tasks found five things worth fixing before calling this plan done, none of them caught by any single task's review because each only becomes reachable by combining tasks that were reviewed separately (the archetypal cross-task defect). Two required a design decision rather than an obvious fix; both were resolved with the user before this wave started.
+
+**1. No friendly fire (design decision: confirmed).** Every damage source — the melee `Hitbox`, `BigCheckSpecial`'s query, `SlapshotProjectile`, and `Puck` — hit *any* Hurtbox including a co-op partner's, with no team check. Worse, `take_damage` grants invincibility frames on any hit, so an accidental swing from your partner would shield them from a real enemy's next hit. Decision: players never damage each other. Enemies aren't built yet, so the rule is simply "a `PlayerController` source never damages a `PlayerController` target" — this doesn't need to know about teams/factions beyond that.
+
+**2. Shared damage-dispatch helper (fixes #1 and the recurring self-collision bug class together).** The self-collision bug that was independently fixed three times (Task 7's Slapshot, Task 7's Big Check, Task 8's melee/TestDummy) is one missing abstraction manifesting repeatedly — each of the four damage sources grew its own copy of `if area.is_in_group("hurtbox") and area.has_method("take_damage"): area.take_damage(...)`, with inconsistent exclusion mechanisms (`Hitbox.exclude`, Big Check's inline check, Slapshot's `caster_hurtbox`, and **Puck had no exclusion at all** — it relied purely on a 4px spawn-offset margin). Create `res://combat/damage_dispatch.gd`:
+
+```gdscript
+class_name DamageDispatch
+
+static func try_deal_damage(area: Area2D, damage: int, knockback_force: float, source: Node, source_position: Vector2, exclude: Node = null) -> bool:
+	if area == exclude:
+		return false
+	if not (area.is_in_group("hurtbox") and area.has_method("take_damage")):
+		return false
+	if source is PlayerController and area.get("owner_body") is PlayerController:
+		return false
+	area.take_damage(damage, knockback_force, source_position)
+	return true
+```
+
+Route all four damage sources through this instead of duplicating the check:
+
+- `res://combat/hitbox.gd` — retype `source`/`p_source` from `Node` to `Node2D` (deferred-minor from Task 8's review: `_on_area_entered` reads `source.global_position`, which only exists on `Node2D`+, not bare `Node`; every real caller already passes a `Node2D`-derived source, so this is a zero-risk tightening). `_on_area_entered` becomes a single `DamageDispatch.try_deal_damage(area, damage, knockback_force, source, source_pos, exclude)` call.
+- `res://player/specials/big_check_special.gd` — replace the inline `if area == controller.hurtbox: continue` / `is_in_group`/`take_damage` block with `DamageDispatch.try_deal_damage(area, DAMAGE, controller.character_stats.finisher_knockback_force, controller, controller.global_position, controller.hurtbox)`.
+- `res://player/specials/slapshot_special.gd` — add `projectile.caster = controller` (new field) alongside the existing `projectile.caster_hurtbox = controller.hurtbox`.
+- `res://player/slapshot_projectile.gd` — add `var caster: Node = null`. `_on_area_entered` becomes `if DamageDispatch.try_deal_damage(area, damage, knockback_force, caster, global_position, caster_hurtbox): queue_free()`.
+- `res://items/puck.gd` — add `var thrower: Node = null`, set via a new 4th param on `throw(direction, new_parent, from_global_position, p_thrower)`. `_on_area_entered` becomes `if not is_thrown: return` then `if DamageDispatch.try_deal_damage(area, DAMAGE, STUN_KNOCKBACK, thrower, global_position): queue_free()` (no `exclude` needed — the friendly-fire check alone doesn't cover the thrower's own Hurtbox since a player isn't damaging *themselves* as a "different PlayerController", so keep the existing 4px-offset self-clearance as-is, it was never actually broken; this fix is about giving Puck a `source` for the friendly-fire check, not re-litigating the offset).
+- `res://player/player_controller.gd` — the melee attack call site and `pick_up_puck`'s throw call both need updating for the new signatures (see item 5 below).
+
+**3. Puck despawn (fixes the "thrown and missed = leaked forever, unrecoverable" bug).** `Puck.throw()` never gave the puck a despawn path — no `VisibleOnScreenNotifier2D`, no lifetime timer — so a missed throw flies off-screen and runs `_physics_process` forever, and `_on_body_entered`'s `if is_thrown: return` guard means it can never be picked up again either: the item is permanently removed from play. Fix identically to how `SlapshotProjectile` already handles this (written two tasks later, correctly): add a `VisibleOnScreenNotifier2D` child to `res://items/puck.tscn` (same construction as `slapshot_projectile.tscn`: `add_node` under the Puck root, connect its `screen_exited` signal), and add `func _on_screen_exited() -> void: if is_thrown: queue_free()` to `puck.gd`. A missed puck now cleanly despawns instead of leaking; it doesn't become pickup-able again after a miss (simpler than a travel-timer/re-arm approach, and consistent with the Slapshot precedent already in the codebase).
+
+Bundle in the cheap fix for the deferred-minor "two players could both claim the same puck in one tick": add `var _claimed: bool = false` to `Puck`, set it `true` at the top of `_on_body_entered` (before calling `pick_up_puck`, guarding against a second body's `body_entered` firing before the first's deferred reparent lands), and reset it `false` at the top of `throw()` (a re-thrown... actually a freshly-spawned puck should never need this reset since `_claimed` starts `false`, but `throw()` runs on every throw including hypothetical future re-pickup paths — harmless either way, include it for safety).
+
+**4. Remove the unused `HURT` state (design decision: confirmed).** `PlayerController`'s `enum State { IDLE, WALK, ATTACK, HURT }` declares `HURT` but never assigns it anywhere, and the `_physics_process` `match` block has no handler for it. This is a landmine, not a feature: the moment anything later assigns `State.HURT`, the player enters a state with no exit condition and no timer decrementing it — permanently frozen. Decision: delete `HURT` from the enum now (`enum State { IDLE, WALK, ATTACK }`) rather than half-implement hit-stun, which is out of this plan's scope (spec §7 excludes enemy AI, and hit-stun design is really an enemy-combat concern). Re-add it cleanly, with real handling, whenever a future plan actually needs it. (Note: `SPECIAL` was never supposed to be a state — Task 7's plan text already documents this as an intentional decision, not an oversight; the final review's confusion on this point doesn't need a code change.)
+
+**5. Other small fixes bundled into this wave:**
+- `_process_special_input()` currently consumes `special_cooldown_remaining` *before* checking whether `character_stats.special_behavior` is even set — a character with no special configured burns a cooldown on every press for nothing. Reorder: check `special_behavior` is non-null before setting the cooldown.
+- Silence four persistent Godot-analyzer "unused parameter" warnings so `get_godot_errors` stays a meaningful signal (this project's primary safety net, given there's no CLI test runner): `player_controller.gd`'s `_process_movement(delta)` → `_process_movement(_delta)` (delta genuinely unused inside — velocity is set directly, not integrated by hand); `player_controller.gd`'s `take_damage(amount, ...)` → `take_damage(_amount, ...)` plus a one-line `# TODO: HP tracking - amount is currently unused, no HP field exists yet` comment (per spec, HP/death isn't in this plan's scope, so this reads as deferred rather than forgotten); `special_behavior.gd`'s base `execute(controller)` → `execute(_controller)` (the no-op base doesn't use it; subclass overrides that do use it are unaffected — GDScript doesn't require override parameter names to match the base); `puck.gd`'s `attach_to_carrier(carrier)` → `attach_to_carrier(_carrier)`.
+- Update `player_controller.gd`'s two changed call sites: `hitbox.activate(damage, knockback, self, hurtbox)` (unchanged call, but `Hitbox`'s param is now `Node2D`-typed — `self` is a `CharacterBody2D`, still type-compatible) and the puck throw in `_process_attack_input`, which gains the new 4th arg: `puck.throw(Vector2(facing_dir, 0.0), get_tree().current_scene, throw_pos, self)`.
+
+**Verification for this wave (live, via GDAI MCP tools against `test_arena.tscn`):**
+1. Friendly fire: with `Player1` (Enforcer) and `Player2` (Sniper) at their existing overlapping spawn, face `Player1` toward `Player2` and attack — confirm `Player2` does *not* take damage or gain `iframe_remaining` (previously it would have).
+2. `p2_attack`/`p2_special` — never live-tested by any prior task (Task 10 only exercised `p2_move_*`). Batch-fire `p2_attack` at `Dummy1` (repositioned in range) and confirm the 3-hit combo still works through the Sniper's stats (`combo_damage = [8,8,12]`); batch-fire `p2_special` and confirm Slapshot still fires and hits (this doubles as the first real live test of Slapshot through its actual committed `Player2`/Sniper configuration, rather than Task 7's temporary stat-swap).
+3. Puck despawn: throw a puck so it misses everything, wait for it to leave the screen, confirm it's gone from the scene tree (`get_node_properties` on its path returns "not found") rather than lingering.
+4. Re-run Task 6's melee-vs-Dummy1 check and Task 8's self-collision regression check once more after the `DamageDispatch` refactor, to confirm the consolidation didn't regress either (`Dummy1.hits_taken` still increments on a normal swing; `Player1.iframe_remaining` still stays `0.0` after the player's own swing).
+5. `get_godot_errors` clean, including confirming the four previously-persistent unused-parameter warnings are gone.
+
+**Commit:**
+```bash
+git add combat/damage_dispatch.gd combat/hitbox.gd player/specials/big_check_special.gd player/specials/slapshot_special.gd player/slapshot_projectile.gd items/puck.gd items/puck.tscn player/player_controller.gd player/special_behavior.gd
+git commit -m "Final review fixes: no friendly fire, shared damage dispatch, puck despawn, remove dead HURT state"
+```
