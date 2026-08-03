@@ -1382,8 +1382,11 @@ func throw(direction: Vector2, new_parent: Node, from_global_position: Vector2) 
 Build `res://items/puck.tscn`:
 1. `mcp__gdai-mcp__create_scene`, `file_path: "res://items/puck.tscn"`, `node_type: "Area2D"`, `node_name: "Puck"`.
 2. `mcp__gdai-mcp__attach_script`, `node_path: "."`, `script_path: "res://items/puck.gd"`.
-3. `mcp__gdai-mcp__add_node`, `parent_node_path: "."`, `node_type: "CollisionShape2D"`, `node_name: "CollisionShape2D"`.
-4. `mcp__gdai-mcp__add_resource`, `node_path: "CollisionShape2D"`, `property_path: "shape"`, `resource_type: "CircleShape2D"`, `properties: "{\"radius\":\"6.0\"}"`.
+3. `mcp__gdai-mcp__update_property`, `node_path: "."`, `property_path: "collision_mask"`, `value: "3"`.
+4. `mcp__gdai-mcp__add_node`, `parent_node_path: "."`, `node_type: "CollisionShape2D"`, `node_name: "CollisionShape2D"`.
+5. `mcp__gdai-mcp__add_resource`, `node_path: "CollisionShape2D"`, `property_path: "shape"`, `resource_type: "CircleShape2D"`, `properties: "{\"radius\":\"6.0\"}"`.
+
+Step 3's `collision_mask = 3` (bit 1 for `Hurtbox`/`Hitbox` areas on the Godot default layer 1, bit 2 for player bodies) is required because Task 5 put `PlayerController` on `collision_layer = 2` for the P1/P2 pass-through fix — an `Area2D` only detects a `PhysicsBody2D` via `body_entered` when `(Area.collision_mask & Body.collision_layer) != 0`. Left at the Godot default `collision_mask = 1`, the Puck can never see the player at all and pickup silently never fires.
 
 - [ ] **Step 3: Implement — PlayerController puck carrying**
 
@@ -1503,10 +1506,19 @@ func take_damage(amount: int, knockback_force: float, source_position: Vector2) 
 		away = Vector2(-facing_dir, 0.0)
 	knockback_velocity = away.normalized() * knockback_force
 
+# pick_up_puck() is called from Puck._on_body_entered(), which runs during Godot's
+# physics query-flush. Reparenting a CollisionObject2D or changing its monitoring
+# state synchronously during that flush is not allowed (Godot logs an error and
+# silently no-ops the change — the carried puck would stay monitoring/monitorable
+# even after attach_to_carrier() "set" them false). Deferring the actual work via
+# call_deferred() runs it after the flush completes instead.
 func pick_up_puck(puck: Puck) -> void:
 	if carried_puck:
 		return
 	carried_puck = puck
+	_attach_carried_puck.call_deferred(puck)
+
+func _attach_carried_puck(puck: Puck) -> void:
 	puck.get_parent().remove_child(puck)
 	add_child(puck)
 	puck.position = Vector2(10.0, -6.0)
