@@ -1,7 +1,7 @@
 extends CharacterBody2D
 class_name PlayerController
 
-enum State { IDLE, WALK, ATTACK, HURT }
+enum State { IDLE, WALK, ATTACK }
 
 @export var character_stats: CharacterStats
 @export var input_prefix: String = "p1"
@@ -52,7 +52,7 @@ func _physics_process(delta: float) -> void:
 	position.y = clamp(position.y, depth_bounds.x, depth_bounds.y)
 	_update_visual()
 
-func _process_movement(delta: float) -> void:
+func _process_movement(_delta: float) -> void:
 	var input_dir := Vector2(
 		Input.get_action_strength(input_prefix + "_move_right", true) - Input.get_action_strength(input_prefix + "_move_left", true),
 		Input.get_action_strength(input_prefix + "_move_down", true) - Input.get_action_strength(input_prefix + "_move_up", true)
@@ -76,7 +76,7 @@ func _process_attack_input() -> void:
 		var puck := carried_puck
 		carried_puck = null
 		var throw_pos := global_position + Vector2(20.0 * facing_dir, 0.0)
-		puck.throw(Vector2(facing_dir, 0.0), get_tree().current_scene, throw_pos)
+		puck.throw(Vector2(facing_dir, 0.0), get_tree().current_scene, throw_pos, self)
 		return
 
 	current_attack_hit = combo_state.register_attack_press(character_stats.combo_window_sec)
@@ -98,11 +98,13 @@ func _process_special_input() -> void:
 		return
 	if not Input.is_action_just_pressed(input_prefix + "_special", true):
 		return
+	if not character_stats.special_behavior:
+		return
 	special_cooldown_remaining = character_stats.special_cooldown_sec
-	if character_stats.special_behavior:
-		character_stats.special_behavior.execute(self)
+	character_stats.special_behavior.execute(self)
 
-func take_damage(amount: int, knockback_force: float, source_position: Vector2) -> void:
+func take_damage(_amount: int, knockback_force: float, source_position: Vector2) -> void:
+	# TODO: HP tracking - amount is currently unused, no HP field exists yet
 	if iframe_remaining > 0.0:
 		return
 	iframe_remaining = character_stats.iframe_duration_sec

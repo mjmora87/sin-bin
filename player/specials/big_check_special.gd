@@ -18,7 +18,4 @@ func execute(controller) -> void:
 	var hits: Array = space_state.intersect_shape(params)
 	for hit in hits:
 		var area: Area2D = hit["collider"]
-		if area == controller.hurtbox:
-			continue
-		if area.is_in_group("hurtbox") and area.has_method("take_damage"):
-			area.take_damage(DAMAGE, controller.character_stats.finisher_knockback_force, controller.global_position)
+		DamageDispatch.try_deal_damage(area, DAMAGE, controller.character_stats.finisher_knockback_force, controller, controller.global_position, controller.hurtbox)

@@ -7,6 +7,8 @@ const STUN_KNOCKBACK := 60.0
 
 var is_thrown: bool = false
 var velocity: Vector2 = Vector2.ZERO
+var thrower: Node = null
+var _claimed: bool = false
 
 func _ready() -> void:
 	body_entered.connect(_on_body_entered)
@@ -17,21 +19,28 @@ func _physics_process(delta: float) -> void:
 		global_position += velocity * delta
 
 func _on_body_entered(body: Node) -> void:
-	if is_thrown:
+	if is_thrown or _claimed:
 		return
 	if body.has_method("pick_up_puck"):
+		_claimed = true
 		body.pick_up_puck(self)
 
 func _on_area_entered(area: Area2D) -> void:
-	if is_thrown and area.is_in_group("hurtbox") and area.has_method("take_damage"):
-		area.take_damage(DAMAGE, STUN_KNOCKBACK, global_position)
+	if not is_thrown:
+		return
+	if DamageDispatch.try_deal_damage(area, DAMAGE, STUN_KNOCKBACK, thrower, global_position):
 		queue_free()
 
-func attach_to_carrier(carrier: Node) -> void:
+func _on_screen_exited() -> void:
+	if is_thrown:
+		queue_free()
+
+func attach_to_carrier(_carrier: Node) -> void:
 	monitoring = false
 	monitorable = false
 
-func throw(direction: Vector2, new_parent: Node, from_global_position: Vector2) -> void:
+func throw(direction: Vector2, new_parent: Node, from_global_position: Vector2, p_thrower: Node) -> void:
+	_claimed = false
 	var old_parent := get_parent()
 	if old_parent:
 		old_parent.remove_child(self)
@@ -40,4 +49,5 @@ func throw(direction: Vector2, new_parent: Node, from_global_position: Vector2) 
 	monitoring = true
 	monitorable = true
 	is_thrown = true
+	thrower = p_thrower
 	velocity = direction.normalized() * THROW_SPEED

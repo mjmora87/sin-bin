@@ -11,3 +11,7 @@ script = ExtResource("1_qgw4h")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=570028451]
 shape = SubResource("CircleShape2D_qgw4h")
+
+[node name="VisibleOnScreenNotifier2D" type="VisibleOnScreenNotifier2D" parent="." unique_id=736435101]
+
+[connection signal="screen_exited" from="VisibleOnScreenNotifier2D" to="." method="_on_screen_exited"]

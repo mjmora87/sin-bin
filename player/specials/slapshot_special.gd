@@ -10,4 +10,5 @@ func execute(controller) -> void:
 	controller.get_tree().current_scene.add_child(projectile)
 	projectile.global_position = controller.global_position + Vector2(20.0 * controller.facing_dir, 0.0)
 	projectile.caster_hurtbox = controller.hurtbox
+	projectile.caster = controller
 	projectile.setup(Vector2(controller.facing_dir, 0) * SPEED, DAMAGE, controller.character_stats.knockback_force)

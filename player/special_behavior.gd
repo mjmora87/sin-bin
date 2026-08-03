@@ -1,5 +1,5 @@
 extends Resource
 class_name SpecialBehavior
 
-func execute(controller) -> void:
+func execute(_controller) -> void:
 	pass
