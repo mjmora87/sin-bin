@@ -2,9 +2,13 @@
 
 [ext_resource type="Script" uid="uid://bilqligcr3wsb" path="res://arena/test_dummy.gd" id="1_mhp8s"]
 [ext_resource type="Script" uid="uid://13llpe8ul221" path="res://combat/hurtbox.gd" id="2_ay72g"]
+[ext_resource type="Script" uid="uid://c038revw5lwo3" path="res://combat/hitbox.gd" id="3_ccmow"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ay72g"]
 size = Vector2(24, 32)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_ccmow"]
+size = Vector2(30, 30)
 
 [node name="TestDummy" type="Node2D" unique_id=1206850869]
 script = ExtResource("1_mhp8s")
@@ -14,3 +18,9 @@ script = ExtResource("2_ay72g")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox" unique_id=1390706903]
 shape = SubResource("RectangleShape2D_ay72g")
+
+[node name="AttackHitbox" type="Area2D" parent="." unique_id=1613393055]
+script = ExtResource("3_ccmow")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="AttackHitbox" unique_id=355884690]
+shape = SubResource("RectangleShape2D_ccmow")
