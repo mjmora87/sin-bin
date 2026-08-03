@@ -7,6 +7,7 @@
 [ext_resource type="Script" uid="uid://bilqligcr3wsb" path="res://arena/test_dummy.gd" id="5_w7fvv"]
 [ext_resource type="PackedScene" uid="uid://c0vm37qi36uog" path="res://items/puck.tscn" id="6_a670p"]
 [ext_resource type="Script" uid="uid://dulucw8lqks8q" path="res://items/puck.gd" id="7_imect"]
+[ext_resource type="Resource" uid="uid://bf6tlw3hyxroq" path="res://player/data/sniper_stats.tres" id="8_imect"]
 
 [node name="TestArena" type="Node2D" unique_id=781686505]
 y_sort_enabled = true
@@ -23,3 +24,10 @@ script = ExtResource("5_w7fvv")
 [node name="Puck1" type="Area2D" parent="." unique_id=1524792601 instance=ExtResource("6_a670p")]
 position = Vector2(60, 0)
 script = ExtResource("7_imect")
+
+[node name="Player2" type="CharacterBody2D" parent="." unique_id=704386125 instance=ExtResource("1_555b8")]
+position = Vector2(-20, 0)
+collision_layer = 2
+script = ExtResource("2_6pj3w")
+character_stats = ExtResource("8_imect")
+input_prefix = "p2"
