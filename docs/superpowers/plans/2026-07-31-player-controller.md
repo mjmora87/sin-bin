@@ -1062,10 +1062,18 @@ git commit -m "Add Big Check and Slapshot specials with cooldown gating"
 - Modify: `res://player/player_controller.gd` (full rewrite)
 - Modify: `res://arena/test_dummy.gd` (add optional auto-attack for QA)
 - Modify: `res://arena/test_dummy.tscn` (add `AttackHitbox` child)
+- Modify: `res://combat/hitbox.gd` (add an optional self-exclusion param — see note below)
 
 **Interfaces:**
 - Consumes: `Hitbox`/`Hurtbox` (Task 4).
 - Produces: `PlayerController.take_damage(amount: int, knockback_force: float, source_position: Vector2) -> void`, fields `iframe_remaining: float`, `knockback_velocity: Vector2`. Reuses `Hitbox` on `TestDummy` — the first non-player user of that primitive, confirming it's genuinely reusable rather than player-specific.
+- `Hitbox.activate()` gains a 4th optional parameter, `p_exclude: Node = null`, backward-compatible with every existing 3-arg call site (Task 6's melee attack currently calls it with 3 args).
+
+**Self-collision note (same bug class as Task 7's Slapshot/Big Check fix, caught before it ever ran live):** with `PlayerController.take_damage` about to exist for the first time in this task, two previously-inert overlaps become live bugs unless fixed here:
+1. The player's own melee attack `Hitbox` (24×20, repositioned to `x = 20 * facing_dir` before each swing) geometrically overlaps the player's own `Hurtbox` (20×32, centered at the player's origin) by a couple of pixels — `[8,32]` vs `[-10,10]` at `facing_dir=1` — so every attack swing would immediately knock back and iframe the *attacker*, not just whatever it's aimed at.
+2. `TestDummy`'s new `AttackHitbox` is added as a sibling of `TestDummy`'s own `Hurtbox`, both at the node's local origin with no offset — so `TestDummy`'s auto-attack would immediately hit its own `Hurtbox`, corrupting `hits_taken`/`last_hit_amount` (already relied on by Tasks 6-7's verification) with self-inflicted hits unrelated to anything the player does.
+
+Both are fixed the same way: `Hitbox.activate()` takes an optional node to exclude from its hit results, and both call sites (`PlayerController`'s melee attack, `TestDummy`'s auto-attack) pass their own `Hurtbox` as that exclusion. This generalizes the `area == controller.hurtbox` / `area == caster_hurtbox` pattern from Task 7's fix into the shared primitive instead of duplicating it ad-hoc a third time.
 
 - [ ] **Step 1: Write the failing test — confirm TestDummy has no attack capability yet**
 
@@ -1110,7 +1118,7 @@ func _physics_process(delta: float) -> void:
 	_attack_cycle_timer -= delta
 	if _attack_cycle_timer <= 0.0:
 		_attack_cycle_timer = auto_attack_interval_sec
-		attack_hitbox.activate(auto_attack_damage, auto_attack_knockback, self)
+		attack_hitbox.activate(auto_attack_damage, auto_attack_knockback, self, hurtbox)
 	elif _attack_cycle_timer <= auto_attack_interval_sec - 0.2:
 		attack_hitbox.deactivate()
 
@@ -1127,7 +1135,42 @@ Add the node to `test_dummy.tscn`:
 3. `mcp__gdai-mcp__add_node`, `parent_node_path: "AttackHitbox"`, `node_type: "CollisionShape2D"`, `node_name: "CollisionShape2D"`.
 4. `mcp__gdai-mcp__add_resource`, `node_path: "AttackHitbox/CollisionShape2D"`, `property_path: "shape"`, `resource_type: "RectangleShape2D"`, `properties: "{\"size\":\"Vector2(30, 30)\"}"`.
 
-- [ ] **Step 3: Implement — PlayerController.take_damage**
+- [ ] **Step 3: Implement — Hitbox self-exclusion**
+
+`mcp__gdai-mcp__create_script`, `file_path: "res://combat/hitbox.gd"` (full rewrite — adds `exclude` and the 4th `activate()` param; `damage`/`knockback_force`/`source` and everything else unchanged from Task 4):
+
+```gdscript
+extends Area2D
+class_name Hitbox
+
+var damage: int = 0
+var knockback_force: float = 0.0
+var source: Node = null
+var exclude: Node = null
+
+func _ready() -> void:
+	monitoring = false
+	area_entered.connect(_on_area_entered)
+
+func activate(p_damage: int, p_knockback_force: float, p_source: Node, p_exclude: Node = null) -> void:
+	damage = p_damage
+	knockback_force = p_knockback_force
+	source = p_source
+	exclude = p_exclude
+	monitoring = true
+
+func deactivate() -> void:
+	monitoring = false
+
+func _on_area_entered(area: Area2D) -> void:
+	if area == exclude:
+		return
+	if area.is_in_group("hurtbox") and area.has_method("take_damage"):
+		var source_pos: Vector2 = source.global_position if source else global_position
+		area.take_damage(damage, knockback_force, source_pos)
+```
+
+- [ ] **Step 4: Implement — PlayerController.take_damage**
 
 `mcp__gdai-mcp__create_script`, `file_path: "res://player/player_controller.gd"` (full rewrite — adds `iframe_remaining`, `knockback_velocity`, `take_damage`, and applies knockback in `_physics_process`; everything else unchanged from Task 7):
 
@@ -1210,7 +1253,7 @@ func _process_attack_input() -> void:
 	var damage: int = character_stats.combo_damage[current_attack_hit - 1]
 	var knockback: float = character_stats.finisher_knockback_force if combo_state.is_finisher() else character_stats.knockback_force
 	hitbox.position.x = 20.0 * facing_dir
-	hitbox.activate(damage, knockback, self)
+	hitbox.activate(damage, knockback, self, hurtbox)
 
 func _process_attack_timer(delta: float) -> void:
 	attack_timer -= delta
@@ -1241,7 +1284,7 @@ func _update_visual() -> void:
 	visual.modulate.a = 0.5 if iframe_remaining > 0.0 and int(iframe_remaining * 10) % 2 == 0 else 1.0
 ```
 
-- [ ] **Step 4: Verify it passes — live hit-reaction check**
+- [ ] **Step 5: Verify it passes — live hit-reaction check**
 
 1. Position `Dummy1` next to `Player1` (e.g. `Vector2(30, 0)`) and set `mcp__gdai-mcp__update_property`, `node_path: "Dummy1"`, `property_path: "auto_attack_enabled"`, `value: "true"`.
 2. `mcp__gdai-mcp__play_scene`, `scene_type: "current"`.
@@ -1251,14 +1294,15 @@ func _update_visual() -> void:
 6. `mcp__gdai-mcp__get_node_properties`, `mode: "running_scene"`, `node_path: "/root/TestArena/Player1"`, `properties: ["state"]` at two points ~100ms apart during the iframe window, or via screenshot: `mcp__gdai-mcp__get_running_scene_screenshot` — visually confirm the player sprite is flickering (alpha toggling).
 7. `mcp__gdai-mcp__simulate_input`, `commands: [{"wait_ms": 2200}]` (second auto-attack cycle).
 8. `mcp__gdai-mcp__get_node_properties`, `mode: "running_scene"`, `node_path: "/root/TestArena/Dummy1"`, `properties: ["hits_taken"]` for reference, and re-check `Player1`'s `iframe_remaining` pattern to confirm damage isn't landing every single physics frame while iframes are up (i.e. the player didn't get knocked twice in the same iframe window).
-9. `mcp__gdai-mcp__get_godot_errors` — confirm no errors.
-10. `mcp__gdai-mcp__stop_running_scene`.
-11. Set `Dummy1.auto_attack_enabled` back to `false` via `update_property` so it doesn't interfere with later tasks' verification.
+9. Set `Dummy1.auto_attack_enabled` back to `false` via `update_property`, then wait for `Player1.iframe_remaining` to reach `0.0` (or restart the scene) so the self-attack check below starts clean.
+10. **Self-collision regression check:** record `Player1.iframe_remaining` (expect `0.0`) and `Dummy1.hits_taken` (record current value), then `mcp__gdai-mcp__simulate_input` a single `p1_attack` press (batched: `[{"actions": ["p1_attack"]}, {"wait_ms": 250}]`). Confirm `Dummy1.hits_taken` increased by 1 (the swing still legitimately hits the dummy) **and** `Player1.iframe_remaining` is still `0.0` (the player's own melee `Hitbox` did not hit the player's own `Hurtbox` — this is the exact self-collision this task's `Hitbox.exclude` fix prevents; before the fix, `iframe_remaining` would jump to `character_stats.iframe_duration_sec` on every swing).
+11. `mcp__gdai-mcp__get_godot_errors` — confirm no errors.
+12. `mcp__gdai-mcp__stop_running_scene`.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add player/player_controller.gd arena/test_dummy.gd arena/test_dummy.tscn
+git add player/player_controller.gd arena/test_dummy.gd arena/test_dummy.tscn combat/hitbox.gd
 git commit -m "Add player knockback + invincibility frames on take_damage"
 ```
 
@@ -1433,7 +1477,7 @@ func _process_attack_input() -> void:
 	var damage: int = character_stats.combo_damage[current_attack_hit - 1]
 	var knockback: float = character_stats.finisher_knockback_force if combo_state.is_finisher() else character_stats.knockback_force
 	hitbox.position.x = 20.0 * facing_dir
-	hitbox.activate(damage, knockback, self)
+	hitbox.activate(damage, knockback, self, hurtbox)
 
 func _process_attack_timer(delta: float) -> void:
 	attack_timer -= delta
